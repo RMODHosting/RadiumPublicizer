@@ -26,7 +26,11 @@ namespace RadiumPublicizer
             var files = new List<string>();
             files.AddRange(Directory.EnumerateFiles(inputPath, "*.dll", SearchOption.TopDirectoryOnly));
 
-            Directory.Delete(outputPath, true);
+            try
+            {
+                Directory.Delete(outputPath, true);
+            }
+            catch { }
 
             Parallel.ForEach(files, file =>
             {
