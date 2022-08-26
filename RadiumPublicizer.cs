@@ -1,51 +1,68 @@
 using Mono.Cecil;
 using Mono.Collections.Generic;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 
-namespace APublicizer
+namespace RadiumPublicizer
 {
-    public static class APublicizer
+    public static class RadiumPublicizer
     {
         public const string SUFFIX = "-Publicized";
 
         public static void Main(string[] args)
         {
-            var assemblyPath = Path.GetFullPath(args.Single());
-            using var publicizer = new Publicizer(assemblyPath);
-            var result = publicizer.Run();
+            if (args.Length != 2)
+            {
+                Console.WriteLine("You must specify an input path followed by an output path.");
+                return;
+            }
 
-            assemblyPath = InsertSuffix(assemblyPath, SUFFIX);
-            publicizer.Write(assemblyPath);
+            var inputPath = Path.GetFullPath(args[0]);
+            var outputPath = Path.GetFullPath(args[1]);
 
-            PrintResult(assemblyPath, result);
+            var files = new List<string>();
+            files.AddRange(Directory.EnumerateFiles(inputPath, "*.dll", SearchOption.TopDirectoryOnly));
+
+            Directory.Delete(outputPath, true);
+
+            Parallel.ForEach(files, file =>
+            {
+                var filename = Path.GetFileName(file);
+                if (!ShouldPublicize(filename))
+                    return;
+
+                using var publicizer = new Publicizer(file);
+                var result = publicizer.Run();
+
+                Directory.CreateDirectory(outputPath);
+                publicizer.Write(outputPath + filename);
+
+                PrintResult(filename, result);
+            });
         }
+
+
+        public static bool ShouldPublicize(string filename)
+        {
+            if (filename.Contains("Oxide.References")) return false;
+
+            if (filename == "NewAssembly.dll") return true;
+            if (filename.Contains("Apex")) return true;
+            if (filename.Contains("Assembly-CSharp")) return true;
+            if (filename.Contains("Facepunch")) return true;
+            if (filename.Contains("Rust")) return true;
+            if (filename.Contains("Oxide")) return true;
+
+            return false;
+        }
+
 
         private static void PrintResult(string path, Publicizer.PublicizeResult result)
         {
-            Console.WriteLine($"Publicized - {path}");
-
-            Console.WriteLine("Publicize result - ");
-            Console.WriteLine($"\tTypes - {result.Types}");
-            Console.WriteLine($"\tNestedTypes - {result.NestedTypes}");
-            Console.WriteLine($"\tEvents - {result.Events}");
-            Console.WriteLine($"\tFields - {result.Fields}");
-            Console.WriteLine($"\tMethods - {result.Methods}");
-            Console.WriteLine("\tProperties -");
-            Console.WriteLine($"\t\tSetters - {result.Property_Setters}");
-            Console.WriteLine($"\t\tGetters - {result.Property_Getters}");
-
-            Console.WriteLine("Thank me!");
-        }
-
-        private static string InsertSuffix(string path, string suffix)
-        {
-            var cleanPath = Path.GetDirectoryName(path);
-            var filename = Path.GetFileNameWithoutExtension(path);
-            var extension = Path.GetExtension(path);
-
-            return Path.Combine(cleanPath!, string.Concat(filename, suffix, extension));
+            Console.WriteLine($"Publicized {path} - Types: {result.Types}, NestedTypes: {result.NestedTypes}, Events: {result.Events}, Fields: {result.Fields}, Methods: {result.Methods}, Setters: {result.Property_Setters}, Getters: {result.Property_Getters}");
         }
 
         public static ReaderParameters GetReaderParameters() => new(ReadingMode.Immediate)
@@ -81,7 +98,7 @@ namespace APublicizer
 
         public Publicizer(string path)
         {
-            var rParams = APublicizer.GetReaderParameters();
+            var rParams = RadiumPublicizer.GetReaderParameters();
             var resolver = new DefaultAssemblyResolver();
             resolver.AddSearchDirectory(Path.GetDirectoryName(path));
             rParams.AssemblyResolver = resolver;
